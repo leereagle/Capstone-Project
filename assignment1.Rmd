@@ -1,0 +1,187 @@
+---
+title: "Exploratory Data Analysis and Modeling - Assignment1"
+author: "Li Xin"
+date: "June 11, 2016"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning = FALSE)
+library(stringr)
+library(tm)
+library(RWeka)
+library(ggplot2)
+```
+
+
+## Instructions
+
+The goal of this project is just to display that you've gotten used to working with the data and that you are on track to create your prediction algorithm. Please submit a report on R Pubs (http://rpubs.com/) that explains your exploratory analysis and your goals for the eventual app and algorithm. This document should be concise and explain only the major features of the data you have identified and briefly summarize your plans for creating the prediction algorithm and Shiny app in a way that would be understandable to a non-data scientist manager. You should make use of tables and plots to illustrate important summaries of the data set. The motivation for this project is to: 1. Demonstrate that you've downloaded the data and have successfully loaded it in.2. Create a basic report of summary statistics about the data sets.3. Report any interesting findings that you amassed so far.4. Get feedback on your plans for creating a prediction algorithm and Shiny app.
+
+
+## Data Processing
+
+
+Load and scan the 3 files and count total lines of each file separately.
+
+
+```{r}
+#Count lines - Blogs
+
+blog<-"./final/en_US/en_US.blogs.txt"
+blog.text<-scan(blog,what="char",sep="\n")
+blog.len<-length(blog.text)
+blog.len
+```
+
+There are **`r blog.len`** rows in blog file in total.
+
+```{r}
+#Count lines - Twitters
+
+twitter<-"./final/en_US/en_US.twitter.txt"
+twitter.text<-scan(twitter,what="char",sep="\n")
+twitter.len<-length(twitter.text)
+twitter.len
+```
+
+There are **`r twitter.len`** rows in twitter file in total.
+
+```{r}
+#Count lines - News
+
+news<-"./final/en_US/en_US.news.txt"
+news.text<-scan(news,what="char",sep="\n")
+news.len<-length(news.text)
+news.len
+```
+
+There are **`r news.len`** rows in news file in total.
+
+
+
+##Get sample of Data
+
+Since the file size of these 3 files is very large. It's necessary to grep some sample data for analysis to speed up the performance.In this project, sample data / complete data = 1 / 10000.
+
+```{r}
+
+# data.blog<-sample(blog,blog.len*0.01,replace=FALSE)
+# data.twitter<-sample(twitter,twitter.len*0.01,replace=FALSE)
+# data.news<-sample(news,news.len*0.01,replace=FALSE)
+
+data.blog<-readLines(blog,blog.len/10000,encoding="UTF-8")
+data.twitter<-readLines(twitter,twitter.len/10000,encoding="UTF-8")
+data.news<-readLines(news,news.len/10000,encoding="UTF-8")
+
+# closeAllConnections()
+
+data.blog<-unlist(data.blog)
+data.twitter<-unlist(data.twitter)
+data.news<-unlist(data.news)
+
+
+all<-paste(data.blog,data.twitter,data.news)
+# all<-sent_detect(all,language="en",model=NULL)
+
+```
+
+##Transformation & Data Structure
+
+Removing the whitespaces, numbers, symbols, stopwords etc. Turn all characters into lower case.
+
+```{r}
+all.corpus<-VCorpus(VectorSource(all))
+all.corpus<-tm_map(all.corpus,PlainTextDocument)
+all.corpus<-tm_map(all.corpus,stripWhitespace)
+all.corpus<-tm_map(all.corpus,removeNumbers)
+# all.corpus<-tm_map(all.corpus,content_transformer(stringi::stri_trans_tolower(all.corpus)))
+all.corpus<-tm_map(all.corpus,tolower)
+
+# all.corpus<-tolower(all.corpus)
+# all.corpus<-tm_map(all.corpus,removeWords,stopwords("english"))
+
+#remove some common connected words.
+mystopwords <- c("and", "for", "in", "is", "it", "not", "the", "to")
+all.corpus<-tm_map(all.corpus,removeWords,mystopwords)
+
+#remove stemming of words.
+all.corpus<-tm_map(all.corpus,stemDocument)
+all.corpus<-gsub("^[:alnum:]","",all.corpus)
+
+#removing symbols
+# all.corpus<-gsub("^[:punct:]","",all.corpus)
+# all.corpus<-gsub("[:punct:]","",all.corpus)
+all.corpus<-gsub("\\","",all.corpus,fixed=TRUE)
+```
+
+
+
+Tokenlize and create 1-gram, 2-gram, 3-gram algorithms for analysis.
+
+```{r}
+
+# cleantext<-data.frame(text=unlist(sapply(all.corpus, `[`, "content")), stringsAsFactors=F)
+# head(cleantext, n=6)
+
+one.Gram<-NGramTokenizer(all.corpus,Weka_control(min=1,max=1))
+two.Gram<-NGramTokenizer(all.corpus,Weka_control(min=2,max=2))
+thr.Gram<-NGramTokenizer(all.corpus,Weka_control(min=3,max=3))
+
+# inspect(two.Gram.text)
+# thr.Gram.text<-NGramTokenizer(all.corpus,Weka_control(min=3,max=3,delimiters="\\r\\n\\t.,;:\"()?!"))
+
+# one.Gram.Tab<-as.table(one.Gram)
+one.Gram.fra<-data.frame(table(one.Gram))
+one.Gram.Sort<-one.Gram.fra[order(one.Gram.fra$Freq,decreasing = TRUE),]
+one.Gram.Top20<-one.Gram.Sort[1:20,]
+colnames(one.Gram.Top20) <- c("Word","Frequency")
+one.Gram.Top20$Word<-factor(one.Gram.Top20$Word,levels=one.Gram.Top20$Word[order(one.Gram.Top20$Frequency,decreasing = TRUE)])
+
+two.Gram.fra<-data.frame(table(two.Gram))
+two.Gram.Sort<-two.Gram.fra[order(two.Gram.fra$Freq,decreasing = TRUE),]
+two.Gram.Top20<-two.Gram.Sort[1:20,]
+colnames(two.Gram.Top20) <- c("Word","Frequency")
+two.Gram.Top20$Word<-factor(two.Gram.Top20$Word,levels=two.Gram.Top20$Word[order(two.Gram.Top20$Frequency,decreasing = TRUE)])
+
+thr.Gram.fra<-data.frame(table(thr.Gram))
+thr.Gram.Sort<-thr.Gram.fra[order(thr.Gram.fra$Freq,decreasing = TRUE),]
+thr.Gram.Top20<-thr.Gram.Sort[1:20,]
+colnames(thr.Gram.Top20) <- c("Word","Frequency")
+thr.Gram.Top20$Word<-factor(thr.Gram.Top20$Word,levels=thr.Gram.Top20$Word[order(thr.Gram.Top20$Frequency,decreasing = TRUE)])
+```
+
+
+
+
+##Plot
+
+Using ggplot to display top 20 frequency words with 1,2,3-gram analysis.
+```{r}
+
+#rank of top 20 1-gram words
+ggplot(one.Gram.Top20,aes(x=Word,y=Frequency))+geom_bar(stat="Identity",fill="orange")+geom_text(aes(label=Frequency),vjust=-0.2)+theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+##table of top 20 1-gram words
+head(one.Gram.Top20,20)
+
+#rank of top 20 2-gram words
+ggplot(two.Gram.Top20,aes(x=Word,y=Frequency))+geom_bar(stat="Identity",fill="orange")+geom_text(aes(label=Frequency),vjust=-0.2)+theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+##table of top 20 1-gram words
+head(two.Gram.Top20,20)
+
+#rank of top 20 3-gram words
+ggplot(thr.Gram.Top20,aes(x=Word,y=Frequency))+geom_bar(stat="Identity",fill="orange")+geom_text(aes(label=Frequency),vjust=-0.2)+theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+##table of top 20 1-gram words
+head(thr.Gram.Top20,20)
+
+```
+
+
+Very interesting result came from frequency ranking of 3-gram is the same among the top 20 words (another reason is due to the size training dataset is limited). We can find out when n goes bigger comparing the ngrams(n=1~3), the variance became smaller.
+
+
+To be improved: Take care of the rest symbols without affecting any English characters.
