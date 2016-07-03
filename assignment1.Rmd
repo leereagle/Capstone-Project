@@ -71,9 +71,9 @@ Since the file size of these 3 files is very large. It's necessary to grep some 
 # data.twitter<-sample(twitter,twitter.len*0.01,replace=FALSE)
 # data.news<-sample(news,news.len*0.01,replace=FALSE)
 
-data.blog<-readLines(blog,blog.len/10000,encoding="UTF-8")
-data.twitter<-readLines(twitter,twitter.len/10000,encoding="UTF-8")
-data.news<-readLines(news,news.len/10000,encoding="UTF-8")
+data.blog<-readLines(blog,blog.len/1000,encoding="latin1")
+data.twitter<-readLines(twitter,twitter.len/1000,encoding="latin1")
+data.news<-readLines(news,news.len/1000,encoding="latin1")
 
 # closeAllConnections()
 
@@ -96,24 +96,28 @@ all.corpus<-VCorpus(VectorSource(all))
 all.corpus<-tm_map(all.corpus,PlainTextDocument)
 all.corpus<-tm_map(all.corpus,stripWhitespace)
 all.corpus<-tm_map(all.corpus,removeNumbers)
+
 # all.corpus<-tm_map(all.corpus,content_transformer(stringi::stri_trans_tolower(all.corpus)))
 all.corpus<-tm_map(all.corpus,tolower)
+
+
 
 # all.corpus<-tolower(all.corpus)
 # all.corpus<-tm_map(all.corpus,removeWords,stopwords("english"))
 
 #remove some common connected words.
-mystopwords <- c("and", "for", "in", "is", "it", "not", "the", "to")
-all.corpus<-tm_map(all.corpus,removeWords,mystopwords)
+# mystopwords <- c("and", "for", "in", "is", "it", "not", "the", "to")
+# all.corpus<-tm_map(all.corpus,removeWords,mystopwords)
 
 #remove stemming of words.
 all.corpus<-tm_map(all.corpus,stemDocument)
-all.corpus<-gsub("^[:alnum:]","",all.corpus)
+# all.corpus<-gsub("^[:alnum:]","",all.corpus)
 
 #removing symbols
-# all.corpus<-gsub("^[:punct:]","",all.corpus)
 # all.corpus<-gsub("[:punct:]","",all.corpus)
-all.corpus<-gsub("\\","",all.corpus,fixed=TRUE)
+# # all.corpus<-gsub("[:punct:]","",all.corpus)
+# all.corpus<-gsub("\\","",all.corpus,fixed=TRUE)
+all.corpus<-tm_map(all.corpus,removePunctuation)
 ```
 
 
@@ -128,9 +132,10 @@ Tokenlize and create 1-gram, 2-gram, 3-gram algorithms for analysis.
 one.Gram<-NGramTokenizer(all.corpus,Weka_control(min=1,max=1))
 two.Gram<-NGramTokenizer(all.corpus,Weka_control(min=2,max=2))
 thr.Gram<-NGramTokenizer(all.corpus,Weka_control(min=3,max=3))
+fou.Gram<-NGramTokenizer(all.corpus,Weka_control(min=4,max=4))
 
 # inspect(two.Gram.text)
-# thr.Gram.text<-NGramTokenizer(all.corpus,Weka_control(min=3,max=3,delimiters="\\r\\n\\t.,;:\"()?!"))
+# fou.Gram.text<-NGramTokenizer(all.corpus,Weka_control(min=3,max=3,delimiters="\\r\\n\\t.,;:\"()?!"))
 
 # one.Gram.Tab<-as.table(one.Gram)
 one.Gram.fra<-data.frame(table(one.Gram))
@@ -150,6 +155,12 @@ thr.Gram.Sort<-thr.Gram.fra[order(thr.Gram.fra$Freq,decreasing = TRUE),]
 thr.Gram.Top20<-thr.Gram.Sort[1:20,]
 colnames(thr.Gram.Top20) <- c("Word","Frequency")
 thr.Gram.Top20$Word<-factor(thr.Gram.Top20$Word,levels=thr.Gram.Top20$Word[order(thr.Gram.Top20$Frequency,decreasing = TRUE)])
+
+fou.Gram.fra<-data.frame(table(fou.Gram))
+fou.Gram.Sort<-fou.Gram.fra[order(fou.Gram.fra$Freq,decreasing = TRUE),]
+fou.Gram.Top20<-fou.Gram.Sort[1:20,]
+colnames(fou.Gram.Top20) <- c("Word","Frequency")
+fou.Gram.Top20$Word<-factor(fou.Gram.Top20$Word,levels=fou.Gram.Top20$Word[order(fou.Gram.Top20$Frequency,decreasing = TRUE)])
 ```
 
 
@@ -178,6 +189,12 @@ ggplot(thr.Gram.Top20,aes(x=Word,y=Frequency))+geom_bar(stat="Identity",fill="or
 ##table of top 20 1-gram words
 head(thr.Gram.Top20,20)
 
+#rank of top 20 4-gram words
+ggplot(fou.Gram.Top20,aes(x=Word,y=Frequency))+geom_bar(stat="Identity",fill="orange")+geom_text(aes(label=Frequency),vjust=-0.2)+theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+##table of top 20 4-gram words
+head(fou.Gram.Top20,20)
+
 ```
 
 
@@ -185,3 +202,82 @@ Very interesting result came from frequency ranking of 3-gram is the same among 
 
 
 To be improved: Take care of the rest symbols without affecting any English characters.
+
+
+
+```{r}
+# 
+# predictMatches <- function(toks, potentialAnswers) {
+#   #toks <- tokenizeLines(sentence, 'en');
+#   lastTok <- toks[[length(toks)]]
+#   DT <- two.Gram.Sort[tok0==lastTok & tok1 %in% potentialAnswers];    
+#   DT[order(-freq)]
+# }
+# 
+# # q1
+# s <- 'The guy in front of me just bought a pound of bacon, a bouquet, and a case'
+# ans <- c('beer','cheese','soda','pretzels')
+# predictMatches(s,ans)
+# 
+# # q2
+# s <- "You're the reason why I smile everyday. Can you follow me please? It would mean the"
+# ans <- c('best','most','world','universe');
+# predictMatches(s,ans)
+# 
+# # q3
+# s <- "Hey sunshine, can you follow me and make me the"
+# ans <- c('happiest','saddest','bluest','smelliest')
+# predictMatches(s,ans)
+
+# f <- filter(fou.Gram.Sort[fou.Gram.Sort$fou.Gram %in% "good",])
+# 
+# head(f,5)
+# head(fou.Gram.Sort,5)
+# 
+# g <- fou.Gram.Sort[grepl('^and i d ',fou.Gram.Sort$fou.Gram),]
+# head(g,10)
+# 
+# g <- fou.Gram.Sort[grepl('^me about his ',fou.Gram.Sort$fou.Gram),]
+# head(g,10)
+# 
+# g <- fou.Gram.Sort[grepl('^arctic monkeys this ',fou.Gram.Sort$fou.Gram),]
+# head(g,10)
+# 
+# g <- fou.Gram.Sort[grepl('^helps reduce your ',fou.Gram.Sort$fou.Gram),]
+# head(g,10)
+# 
+# g <- fou.Gram.Sort[grepl('^to take a ',fou.Gram.Sort$fou.Gram),]
+# head(g,10)
+# 
+# g <- fou.Gram.Sort[grepl('^to settle the ',fou.Gram.Sort$fou.Gram),]
+# head(g,10)
+# 
+# g <- fou.Gram.Sort[grepl('^groceries in each ',fou.Gram.Sort$fou.Gram),]
+# head(g,10)
+# 
+# g <- fou.Gram.Sort[grepl('^bottom to the ',fou.Gram.Sort$fou.Gram),]
+# head(g,10)
+# 
+# g <- fou.Gram.Sort[grepl('^bruises from playing ',fou.Gram.Sort$fou.Gram),]
+# head(g,10)
+# 
+# g <- fou.Gram.Sort[grepl('^adam sandler s ',fou.Gram.Sort$fou.Gram),]
+# head(g,10)
+# 
+
+write.csv(all,file="all.csv",row.names = FALSE)
+write.csv(one.Gram.fra,file="1G_fra.csv",row.names = TRUE)
+write.csv(one.Gram.Sort,file="1G_Sort.csv",row.names = TRUE)
+write.csv(two.Gram.fra,file="2G_fra.csv",row.names = FALSE)
+write.csv(two.Gram.Sort,file="2G_Sort.csv",row.names = FALSE)
+write.csv(thr.Gram.fra,file="3G_fra.csv",row.names = FALSE)
+write.csv(thr.Gram.Sort,file="3G_Sort.csv",row.names = FALSE)
+write.csv(fou.Gram.fra,file="4G_fra.csv",row.names = FALSE)
+write.csv(fou.Gram.Sort,file="4G_Sort.csv",row.names = FALSE)
+
+
+```
+
+
+
+
